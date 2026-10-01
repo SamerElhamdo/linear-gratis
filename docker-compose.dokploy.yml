@@ -10,6 +10,9 @@ x-restart: &restart
 services:
   gateway:
     <<: *restart
+    # The gateway also joins dokploy-network, where other stacks' containers are
+    # resolvable by their short service names (app, auth, ...). Upstreams are
+    # addressed by unique aliases so Caddy never proxies to another stack.
     image: caddy:2.10-alpine
     configs:
       - source: caddyfile
@@ -26,6 +29,9 @@ services:
 
   app:
     <<: *restart
+    networks:
+      default:
+        aliases: [linear-gratis-app]
     image: ${LINEAR_GRATIS_IMAGE:-samerelhamdousa/linear-gratis:latest}
     pull_policy: always
     environment:
@@ -125,6 +131,9 @@ services:
 
   auth:
     <<: *restart
+    networks:
+      default:
+        aliases: [linear-gratis-auth]
     image: supabase/gotrue:v2.174.0
     depends_on:
       db-init:
@@ -169,6 +178,9 @@ services:
 
   rest:
     <<: *restart
+    networks:
+      default:
+        aliases: [linear-gratis-rest]
     image: postgrest/postgrest:v12.2.12
     depends_on:
       db-init:
@@ -184,6 +196,9 @@ services:
 
   storage:
     <<: *restart
+    networks:
+      default:
+        aliases: [linear-gratis-storage]
     image: supabase/storage-api:v1.24.7
     depends_on:
       db-init:
@@ -239,19 +254,19 @@ configs:
       	encode zstd gzip
 
       	handle_path /auth/v1/* {
-      		reverse_proxy auth:9999
+      		reverse_proxy linear-gratis-auth:9999
       	}
       	handle_path /rest/v1/* {
-      		reverse_proxy rest:3000
+      		reverse_proxy linear-gratis-rest:3000
       	}
       	handle_path /storage/v1/* {
       		request_body {
       			max_size 50MB
       		}
-      		reverse_proxy storage:5000
+      		reverse_proxy linear-gratis-storage:5000
       	}
       	handle {
-      		reverse_proxy app:3000
+      		reverse_proxy linear-gratis-app:3000
       	}
       }
   migrate_script:
