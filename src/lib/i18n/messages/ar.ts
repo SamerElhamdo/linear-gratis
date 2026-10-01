@@ -554,6 +554,8 @@ export const ar: Record<string, string> = {
   "Timeline view": "عرض المخطط الزمني",
   "Timeline": "المخطط الزمني",
   "Roadmap categories": "فئات خارطة الطريق",
+  "Progress by project": "التقدم حسب المشروع",
+  "Target {date}": "الموعد {date}",
   "Error loading data": "خطأ في تحميل البيانات",
   "Retrying...": "جارٍ إعادة المحاولة...",
   "Try again": "حاول مرة أخرى",

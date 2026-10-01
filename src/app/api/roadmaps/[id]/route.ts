@@ -146,6 +146,7 @@ export async function PATCH(
     }
     if (body.show_item_descriptions !== undefined) updateData.show_item_descriptions = body.show_item_descriptions;
     if (body.show_item_dates !== undefined) updateData.show_item_dates = body.show_item_dates;
+    if (body.show_progress_percentage !== undefined) updateData.show_progress_percentage = body.show_progress_percentage;
     if (body.show_vote_counts !== undefined) updateData.show_vote_counts = body.show_vote_counts;
     if (body.show_comment_counts !== undefined) updateData.show_comment_counts = body.show_comment_counts;
     if (body.allow_voting !== undefined) updateData.allow_voting = body.allow_voting;

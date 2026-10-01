@@ -452,6 +452,103 @@ export async function fetchRoadmapIssues(
 }
 
 /**
+ * Completion of one roadmap project, as Linear computes it (0-1).
+ */
+export type RoadmapProjectProgress = {
+  id: string;
+  name: string;
+  color?: string;
+  progress: number;
+  targetDate?: string;
+};
+
+/**
+ * Fetches Linear's own progress figure for each roadmap project, returned in
+ * the order of `projectIds`. Projects Linear does not return are skipped.
+ */
+export async function fetchRoadmapProjectProgress(
+  apiToken: string,
+  projectIds: string[]
+): Promise<{ success: true; projects: RoadmapProjectProgress[] } | { success: false; error: string }> {
+  try {
+    if (!projectIds || projectIds.length === 0) {
+      return { success: true, projects: [] };
+    }
+
+    const query = `
+      query RoadmapProjectProgress($filter: ProjectFilter) {
+        projects(filter: $filter, first: 50) {
+          nodes {
+            id
+            name
+            color
+            progress
+            targetDate
+          }
+        }
+      }
+    `;
+
+    const response = await fetch('https://api.linear.app/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: apiToken.trim(),
+      },
+      body: JSON.stringify({ query, variables: { filter: { id: { in: projectIds } } } }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, error: `Linear API error: ${response.status} ${response.statusText} - ${errorText}` };
+    }
+
+    const result = await response.json() as {
+      data?: {
+        projects: {
+          nodes: Array<{
+            id: string;
+            name: string;
+            color?: string;
+            progress: number;
+            targetDate?: string | null;
+          }>;
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (result.errors) {
+      return { success: false, error: `GraphQL errors: ${result.errors.map((e) => e.message).join(', ')}` };
+    }
+
+    if (!result.data) {
+      return { success: false, error: 'No data returned from Linear API' };
+    }
+
+    const byId = new Map(result.data.projects.nodes.map((project) => [project.id, project]));
+    const projects: RoadmapProjectProgress[] = projectIds.flatMap((id) => {
+      const project = byId.get(id);
+      if (!project) return [];
+      return [{
+        id: project.id,
+        name: project.name,
+        color: project.color,
+        progress: Math.min(1, Math.max(0, project.progress ?? 0)),
+        targetDate: project.targetDate ?? undefined,
+      }];
+    });
+
+    return { success: true, projects };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
  * Linear Customer Request Manager
  *
  * A simple wrapper around the Linear API that creates customer requests

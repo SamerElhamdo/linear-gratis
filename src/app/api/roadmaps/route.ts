@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
         linear_project_ids: linearProjectIds,
         show_item_descriptions: body.show_item_descriptions ?? true,
         show_item_dates: body.show_item_dates ?? true,
+        show_progress_percentage: body.show_progress_percentage ?? false,
         show_vote_counts: body.show_vote_counts ?? true,
         show_comment_counts: body.show_comment_counts ?? true,
         allow_voting: body.allow_voting ?? true,

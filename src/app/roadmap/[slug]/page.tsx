@@ -5,9 +5,10 @@ import { notFound } from 'next/navigation'
 import { KanbanView } from '@/components/roadmap/kanban-view'
 import { TimelineView } from '@/components/roadmap/timeline-view'
 import { ItemDetailModal } from '@/components/roadmap/item-detail-modal'
+import { ProjectProgress } from '@/components/roadmap/project-progress'
 import { RefreshCw, Lock, LayoutGrid, Calendar } from 'lucide-react'
 import { useBrandingSettings, applyBrandingToPage, getBrandingStyles } from '@/hooks/use-branding'
-import type { RoadmapIssue } from '@/lib/linear'
+import type { RoadmapIssue, RoadmapProjectProgress } from '@/lib/linear'
 import type { KanbanColumn } from '@/lib/supabase'
 import { useI18n } from '@/lib/i18n/client'
 import { LanguageToggle } from '@/components/language-toggle'
@@ -30,6 +31,7 @@ interface RoadmapData {
   kanban_columns: KanbanColumn[]
   show_item_descriptions: boolean
   show_item_dates: boolean
+  show_progress_percentage: boolean
   show_vote_counts: boolean
   show_comment_counts: boolean
   allow_voting: boolean
@@ -45,6 +47,7 @@ interface RoadmapResponse {
   voteCounts: Record<string, number>
   commentCounts: Record<string, number>
   projects: Array<{ id: string; name: string; color?: string }>
+  projectProgress: RoadmapProjectProgress[]
 }
 
 // Simple fingerprint generation (in production, use FingerprintJS)
@@ -75,6 +78,7 @@ export default function RoadmapPage({ params }: RoadmapPageProps) {
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({})
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
   const [projects, setProjects] = useState<Array<{ id: string; name: string; color?: string }>>([])
+  const [projectProgress, setProjectProgress] = useState<RoadmapProjectProgress[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -142,6 +146,7 @@ export default function RoadmapPage({ params }: RoadmapPageProps) {
       setVoteCounts(data.voteCounts)
       setCommentCounts(data.commentCounts)
       setProjects(data.projects)
+      setProjectProgress(data.projectProgress ?? [])
       setLayoutType(data.roadmap.layout_type)
       setLastUpdated(new Date())
       setRequiresPassword(false)
@@ -176,6 +181,7 @@ export default function RoadmapPage({ params }: RoadmapPageProps) {
         setVoteCounts(data.voteCounts)
         setCommentCounts(data.commentCounts)
         setProjects(data.projects)
+        setProjectProgress(data.projectProgress ?? [])
         setLastUpdated(new Date())
       }
     } catch (err) {
@@ -436,6 +442,7 @@ export default function RoadmapPage({ params }: RoadmapPageProps) {
           </div>
         ) : (
           <div className="linear-fade-in w-full">
+            {roadmap.show_progress_percentage && <ProjectProgress projects={projectProgress} />}
             {layoutType === 'kanban' ? (
               <KanbanView
                 issues={issues}

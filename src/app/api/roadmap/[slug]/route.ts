@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Roadmap, KanbanColumn } from '@/lib/supabase';
 import { decryptAndRotateTokenIfNeeded } from '@/lib/encryption-rotation';
-import { fetchRoadmapIssues, type RoadmapIssue } from '@/lib/linear';
+import {
+  fetchRoadmapIssues,
+  fetchRoadmapProjectProgress,
+  type RoadmapIssue,
+  type RoadmapProjectProgress,
+} from '@/lib/linear';
 import { redactRoadmapIssue } from '@/lib/public-redaction';
 import {
   authoriseRoadmap,
@@ -33,6 +38,7 @@ export type RoadmapResponse = {
     kanban_columns: KanbanColumn[];
     show_item_descriptions: boolean;
     show_item_dates: boolean;
+    show_progress_percentage: boolean;
     show_vote_counts: boolean;
     show_comment_counts: boolean;
     allow_voting: boolean;
@@ -44,6 +50,7 @@ export type RoadmapResponse = {
   voteCounts: Record<string, number>;
   commentCounts: Record<string, number>;
   projects: Array<{ id: string; name: string; color?: string }>;
+  projectProgress: RoadmapProjectProgress[];
 };
 
 export async function GET(
@@ -181,10 +188,21 @@ async function fetchRoadmapData(roadmap: Roadmap) {
     );
   }
 
-  const issuesResult = await fetchRoadmapIssues(decryptedToken, roadmap.project_ids);
+  const [issuesResult, progressResult] = await Promise.all([
+    fetchRoadmapIssues(decryptedToken, roadmap.project_ids),
+    roadmap.show_progress_percentage
+      ? fetchRoadmapProjectProgress(decryptedToken, roadmap.project_ids)
+      : Promise.resolve({ success: true as const, projects: [] }),
+  ]);
 
   if (!issuesResult.success) {
     throw new Error(`Failed to fetch issues from Linear: ${issuesResult.error}`);
+  }
+
+  // Progress is a summary on top of the board; if Linear fails here, still
+  // serve the board without it.
+  if (!progressResult.success) {
+    console.error('Roadmap project progress error:', progressResult.error);
   }
 
   // Fetch vote counts for all issues
@@ -248,6 +266,7 @@ async function fetchRoadmapData(roadmap: Roadmap) {
       kanban_columns: roadmap.kanban_columns,
       show_item_descriptions: roadmap.show_item_descriptions,
       show_item_dates: roadmap.show_item_dates,
+      show_progress_percentage: roadmap.show_progress_percentage,
       show_vote_counts: roadmap.show_vote_counts,
       show_comment_counts: roadmap.show_comment_counts,
       allow_voting: roadmap.allow_voting,
@@ -259,6 +278,7 @@ async function fetchRoadmapData(roadmap: Roadmap) {
     voteCounts,
     commentCounts,
     projects: Array.from(projectMap.values()),
+    projectProgress: progressResult.success ? progressResult.projects : [],
   };
 
   return NextResponse.json(response);
