@@ -3,6 +3,7 @@ import { afterEach, describe, test } from 'node:test'
 import {
   fetchLinearIssues,
   fetchRoadmapIssues,
+  fetchRoadmapProjectProgress,
   LinearCustomerRequestManager,
   paginateLinearConnection,
   type LinearConnection,
@@ -203,6 +204,66 @@ describe('Linear issue adapters', () => {
     assert.equal(result.issues[0].dueDate, '2026-09-01')
     assert.deepEqual(result.issues[0].project, issueNode.project)
     assert.deepEqual(result.issues[0].labels, issueNode.labels.nodes)
+  })
+})
+
+describe('Roadmap project progress', () => {
+  test('returns Linear progress in roadmap order, clamped, skipping unknown projects', async () => {
+    let body: Record<string, unknown> = {}
+    useFetch(async (_input, init) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return jsonResponse({
+        data: {
+          projects: {
+            nodes: [
+              { id: 'b', name: 'Beta', color: '#00f', progress: 1.4, targetDate: null },
+              { id: 'a', name: 'Alpha', progress: 0.42, targetDate: '2026-10-26' },
+            ],
+          },
+        },
+      })
+    })
+
+    const result = await fetchRoadmapProjectProgress(' token ', ['a', 'missing', 'b'])
+
+    assert.deepEqual(body.variables, { filter: { id: { in: ['a', 'missing', 'b'] } } })
+    assert.deepEqual(result, {
+      success: true,
+      projects: [
+        { id: 'a', name: 'Alpha', color: undefined, progress: 0.42, targetDate: '2026-10-26' },
+        { id: 'b', name: 'Beta', color: '#00f', progress: 1, targetDate: undefined },
+      ],
+    })
+  })
+
+  test('skips the request for no projects and reports remote failures', async () => {
+    let calls = 0
+    useFetch(async () => {
+      calls += 1
+      return jsonResponse({})
+    })
+    assert.deepEqual(await fetchRoadmapProjectProgress('token', []), { success: true, projects: [] })
+    assert.equal(calls, 0)
+
+    const failures: Array<() => Promise<Response>> = [
+      async () => new Response('down', { status: 503, statusText: 'Service Unavailable' }),
+      async () => jsonResponse({ errors: [{ message: 'bad filter' }] }),
+      async () => jsonResponse({}),
+      async () => { throw new Error('network reset') },
+    ]
+    const errors: string[] = []
+    for (const failure of failures) {
+      useFetch(failure)
+      const result = await fetchRoadmapProjectProgress('token', ['a'])
+      assert.equal(result.success, false)
+      if (!result.success) errors.push(result.error)
+    }
+    assert.deepEqual(errors, [
+      'Linear API error: 503 Service Unavailable - down',
+      'GraphQL errors: bad filter',
+      'No data returned from Linear API',
+      'network reset',
+    ])
   })
 })
 
